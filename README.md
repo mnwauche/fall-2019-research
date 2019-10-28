@@ -1,16 +1,18 @@
 # Progressive growing of the GANS
 
--cd to pytorch_GAN_zoo-master
-
-
--prep cifar-10 for traning:
-
-python datasets.py cifar10 $PATH_TO_CIFAR10 -o $OUTPUT_DATASET
-
-
 -activate visdom server before training:
+    python -m visdom.server
 
-python -m visdom.server
+-pgan, save every 200
+    python train.py PGAN -c config_cifar10.json -n cifar10 -s 200
 
+-demo visualization
+    python -m http.server
+    -navigate to: http://localhost:8000/pgan_vis/
 
-python train.py PGAN -c config_cifar10.json --restart -n cifar10
+-to do Week 12/28 - 11/2
+    -interactivity on demo viz
+        -distance heatmap on select
+        -simultaenous selection on different layers
+
+    -loss function for evaluating distance between samples

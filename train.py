@@ -1,0 +1,198 @@
+# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
+import os
+import sys
+import importlib
+import argparse
+
+from models.utils.utils import getVal, getLastCheckPoint, loadmodule
+from models.utils.config import getConfigOverrideFromParser, \
+    updateParserWithConfig
+
+import json
+
+
+def getTrainer(name):
+
+    match = {"PGAN": ("progressive_gan_trainer", "ProgressiveGANTrainer"),
+             "StyleGAN":("styleGAN_trainer", "StyleGANTrainer"),
+             "DCGAN": ("DCGAN_trainer", "DCGANTrainer")}
+
+    if name not in match:
+        raise AttributeError("Invalid module name")
+
+    return loadmodule("models.trainer." + match[name][0], # returns the module and the class
+                      match[name][1],
+                      prefix='')
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Testing script')
+    parser.add_argument('model_name', type=str,
+                        help='Name of the model to launch, available models are\
+                        PGAN and PPGAN. To get all possible option for a model\
+                         please run train.py $MODEL_NAME -overrides')
+    parser.add_argument('--no_vis', help=' Disable all visualizations',
+                        action='store_true')
+    parser.add_argument('--np_vis', help=' Replace visdom by a numpy based \
+                        visualizer (SLURM)',
+                        action='store_true')
+    parser.add_argument('--restart', help=' If a checkpoint is detected, do \
+                                           not try to load it',
+                        action='store_true')
+    parser.add_argument('-n', '--name', help="Model's name",
+                        type=str, dest="name", default="default")
+    parser.add_argument('-d', '--dir', help='Output directory',
+                        type=str, dest="dir", default='output_networks')
+    parser.add_argument('-c', '--config', help="configuration file path",
+                        type=str, dest="configPath")
+    parser.add_argument('-s', '--save_iter', help="If it applies, frequence at\
+                        which a checkpoint should be saved. In the case of a\
+                        evaluation test, iteration to work on.",
+                        type=int, dest="saveIter", default=16000)
+    parser.add_argument('-e', '--eval_iter', help="If it applies, frequence at\
+                        which a checkpoint should be saved",
+                        type=int, dest="evalIter", default=100)
+    parser.add_argument('-S', '--Scale_iter', help="If it applies, scale to work\
+                        on")
+    parser.add_argument('-v', '--partitionValue', help="Partition's value",
+                        type=str, dest="partition_value")
+    parser.add_argument('-xx', '--null', help='Don\'t train, only sample', action='store_true')
+    parser.add_argument('-nG', '--sampleG', help='Number of Generator feature map samples to save',
+                        type=int, default=-1)
+    parser.add_argument('-nD', '--sampleD', help='Number of Discriminator feature map samples to save',
+                        type=int, default=-1)
+
+
+    # Retrieve the model we want to launch
+    baseArgs, unknown = parser.parse_known_args()
+    trainerModule = getTrainer(baseArgs.model_name)
+
+    # Build the output directory if necessary
+    if not os.path.isdir(baseArgs.dir):
+        os.mkdir(baseArgs.dir)
+
+    # Add overrides to the parser: changes to the model configuration can be
+    # done via the command line
+    parser = updateParserWithConfig(parser, trainerModule._defaultConfig)
+    kwargs = vars(parser.parse_args())
+    configOverride = getConfigOverrideFromParser(
+        kwargs, trainerModule._defaultConfig)
+
+    if kwargs['overrides']:
+        parser.print_help()
+        sys.exit()
+
+    # Checkpoint data
+    modelLabel = kwargs["name"]
+    restart = kwargs["restart"]
+    checkPointDir = os.path.join(kwargs["dir"], modelLabel)
+    checkPointData = getLastCheckPoint(checkPointDir, modelLabel) # models/utils/utils.py: return 
+    # checkPointData = trainConfig, pathModel,
+
+    if not os.path.isdir(checkPointDir):
+        os.mkdir(checkPointDir)
+
+    # Training configuration
+    configPath = kwargs.get("configPath", None)
+    if configPath is None:
+        raise ValueError("You need to input a configuratrion file")
+
+    with open(kwargs["configPath"], 'rb') as file:
+        trainingConfig = json.load(file)
+
+    # Model configuration
+    modelConfig = trainingConfig.get("config", {})
+    for item, val in configOverride.items():
+        modelConfig[item] = val
+    trainingConfig["config"] = modelConfig
+
+    # Visualization module
+    vis_module = None
+    if baseArgs.np_vis:
+        vis_module = importlib.import_module("visualization.np_visualizer")
+    elif baseArgs.no_vis:
+        print("Visualization disabled")
+    else:
+        vis_module = importlib.import_module("visualization.visualizer")
+
+    print("Running " + baseArgs.model_name)
+
+    # Path to the image dataset
+    pathDB = trainingConfig["pathDB"]
+    trainingConfig.pop("pathDB", None)
+
+    partitionValue = getVal(kwargs, "partition_value",
+                            trainingConfig.get("partitionValue", None))
+
+    GANTrainer = trainerModule(pathDB,
+                               useGPU=True,
+                               visualisation=vis_module,
+                               lossIterEvaluation=kwargs["evalIter"],
+                               checkPointDir=checkPointDir,
+                               saveIter= kwargs["saveIter"],
+                               modelLabel=modelLabel,
+                               partitionValue=partitionValue,
+                               **trainingConfig)
+
+    # If a checkpoint is found, load it
+    if not restart and checkPointData is not None:
+        trainConfig, pathModel, pathTmpData = checkPointData
+        print(f"Model found at path {pathModel}, pursuing the training")
+        GANTrainer.loadSavedTraining(pathModel, trainConfig, pathTmpData)
+
+    # get models and send to tensorboard for examination
+    # from torch.utils.tensorboard import SummaryWriter
+
+    netG, netD = GANTrainer.model.netG, GANTrainer.model.netD
+    model = GANTrainer.model
+    # noise = GANTrainer.model.buildNoiseData(16)
+    # writer = SummaryWriter('runs/cifar10')
+    # writer.add_graph(generator)
+    # writer.add_graph(descriminator)
+
+    # test: get intermediate outputs
+    N_SAMPLES = 150
+    SAMPLES_DIR = 'pgan_vis/sample_imgs/'
+
+    import helpers
+    sample_gs = helpers.netG_slow_forward(GANTrainer.model.netG, GANTrainer.model.buildNoiseData(N_SAMPLES)[0])
+    import numpy as np
+    from sklearn.manifold import TSNE
+
+    feature_map_gs = [sample_gs[i][0] for i in range(len(sample_gs))]
+    layers = [sample_gs[i][1] for i in range(len(sample_gs)-1)] #exclude output layer
+
+    out_imgs = feature_map_gs[-1]
+
+    # flatten
+    map_data_gs = []
+    for map_data in feature_map_gs[0:len(feature_map_gs)-1]: #exclude output data group
+        samples = [sample.flatten().copy() for sample in map_data]
+        assert np.array(samples).shape[0] == N_SAMPLES
+        map_data_gs.append(np.array(samples))
+
+    # reduce dimensions using TSNE
+    rd_map_data_gs = [TSNE(n_components=2).fit_transform(samples).copy() for samples in map_data_gs]
+    
+    out = []
+    # item() => from numpy float to float
+    # list of samples w
+    for i in range(N_SAMPLES):
+        sample = {'path': f'sample{i}.png'}
+        for j, layer in enumerate(layers):
+            sample[layer] = {'tsne1': rd_map_data_gs[j][i][0].item(), 'tsne2': rd_map_data_gs[j][i][1].item( )}
+        out.append(sample)
+
+    # save last layer to img directory
+    from PIL import Image
+    for i, image in enumerate(out_imgs):
+        img = Image.fromarray(np.uint8(np.moveaxis(image, 0, -1)*255)) # change from channels first to channels last
+        img.save(SAMPLES_DIR + f'sample{i}.png')
+
+    # write sampels to json file
+    with open('pgan_vis/g_samples.json', 'w') as f_json:
+        json.dump(out, f_json)
+
+    breakpoint()
+    GANTrainer.train()

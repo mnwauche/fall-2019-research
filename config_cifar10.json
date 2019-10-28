@@ -1,0 +1,12 @@
+{
+  "pathDB": "../_datasets/cifar-10/output",
+  "config": {
+    "maxIterAtScale": [
+      35100,
+      96000,
+      96000,
+      96000
+    ]
+  },
+  "imagefolderDataset": true
+}
