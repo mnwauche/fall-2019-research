@@ -141,58 +141,49 @@ if __name__ == "__main__":
         print(f"Model found at path {pathModel}, pursuing the training")
         GANTrainer.loadSavedTraining(pathModel, trainConfig, pathTmpData)
 
-    # get models and send to tensorboard for examination
-    # from torch.utils.tensorboard import SummaryWriter
+    # # code for generating / saving feature map samples
+    # netG, netD = GANTrainer.model.netG, GANTrainer.model.netD
+    # model = GANTrainer.model
+    # N_SAMPLES = 150
+    # SAMPLES_DIR = 'pgan_vis/sample_imgs/'
 
-    netG, netD = GANTrainer.model.netG, GANTrainer.model.netD
-    model = GANTrainer.model
-    # noise = GANTrainer.model.buildNoiseData(16)
-    # writer = SummaryWriter('runs/cifar10')
-    # writer.add_graph(generator)
-    # writer.add_graph(descriminator)
+    # import helpers
+    # sample_gs = helpers.netG_slow_forward(GANTrainer.model.netG, GANTrainer.model.buildNoiseData(N_SAMPLES)[0])
+    # import numpy as np
+    # from sklearn.manifold import TSNE
 
-    # test: get intermediate outputs
-    N_SAMPLES = 150
-    SAMPLES_DIR = 'pgan_vis/sample_imgs/'
+    # feature_map_gs = [sample_gs[i][0] for i in range(len(sample_gs))]
+    # layers = [sample_gs[i][1] for i in range(len(sample_gs)-1)] #exclude output layer
 
-    import helpers
-    sample_gs = helpers.netG_slow_forward(GANTrainer.model.netG, GANTrainer.model.buildNoiseData(N_SAMPLES)[0])
-    import numpy as np
-    from sklearn.manifold import TSNE
+    # out_imgs = feature_map_gs[-1]
 
-    feature_map_gs = [sample_gs[i][0] for i in range(len(sample_gs))]
-    layers = [sample_gs[i][1] for i in range(len(sample_gs)-1)] #exclude output layer
+    # # flatten
+    # map_data_gs = []
+    # for map_data in feature_map_gs[0:len(feature_map_gs)-1]: #exclude output data group
+    #     samples = [sample.flatten().copy() for sample in map_data]
+    #     assert np.array(samples).shape[0] == N_SAMPLES
+    #     map_data_gs.append(np.array(samples))
 
-    out_imgs = feature_map_gs[-1]
-
-    # flatten
-    map_data_gs = []
-    for map_data in feature_map_gs[0:len(feature_map_gs)-1]: #exclude output data group
-        samples = [sample.flatten().copy() for sample in map_data]
-        assert np.array(samples).shape[0] == N_SAMPLES
-        map_data_gs.append(np.array(samples))
-
-    # reduce dimensions using TSNE
-    rd_map_data_gs = [TSNE(n_components=2).fit_transform(samples).copy() for samples in map_data_gs]
+    # # reduce dimensions using TSNE
+    # rd_map_data_gs = [TSNE(n_components=2).fit_transform(samples).copy() for samples in map_data_gs]
     
-    out = []
-    # item() => from numpy float to float
-    # list of samples w
-    for i in range(N_SAMPLES):
-        sample = {'path': f'sample{i}.png'}
-        for j, layer in enumerate(layers):
-            sample[layer] = {'tsne1': rd_map_data_gs[j][i][0].item(), 'tsne2': rd_map_data_gs[j][i][1].item( )}
-        out.append(sample)
+    # out = []
+    # # item() => from numpy float to float
+    # # list of samples w
+    # for i in range(N_SAMPLES):
+    #     sample = {'path': f'sample{i}.png'}
+    #     for j, layer in enumerate(layers):
+    #         sample[layer] = {'tsne1': rd_map_data_gs[j][i][0].item(), 'tsne2': rd_map_data_gs[j][i][1].item( )}
+    #     out.append(sample)
 
-    # save last layer to img directory
-    from PIL import Image
-    for i, image in enumerate(out_imgs):
-        img = Image.fromarray(np.uint8(np.moveaxis(image, 0, -1)*255)) # change from channels first to channels last
-        img.save(SAMPLES_DIR + f'sample{i}.png')
+    # # save last layer to img directory
+    # from PIL import Image
+    # for i, image in enumerate(out_imgs):
+    #     img = Image.fromarray(np.uint8(np.moveaxis(image, 0, -1)*255)) # change from channels first to channels last
+    #     img.save(SAMPLES_DIR + f'sample{i}.png')
 
-    # write sampels to json file
-    with open('pgan_vis/g_samples.json', 'w') as f_json:
-        json.dump(out, f_json)
+    # # write sampels to json file
+    # with open('pgan_vis/g_samples.json', 'w') as f_json:
+    #     json.dump(out, f_json)
 
-    breakpoint()
     GANTrainer.train()
