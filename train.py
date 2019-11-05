@@ -141,8 +141,13 @@ if __name__ == "__main__":
         print(f"Model found at path {pathModel}, pursuing the training")
         GANTrainer.loadSavedTraining(pathModel, trainConfig, pathTmpData)
 
-    # # code for generating / saving feature map samples
-    # netG, netD = GANTrainer.model.netG, GANTrainer.model.netD
+    # # generating / saving feature map samples
+    netG, netD = GANTrainer.model.netG, GANTrainer.model.netD
+
+    if generateSamples:
+        generate_samples(netG, netD, GANTrainer.model.buildNoiseData(n_samples)[0]) # get the first part of the noise data
+    # second part is labels
+
     # model = GANTrainer.model
     # N_SAMPLES = 150
     # SAMPLES_DIR = 'pgan_vis/sample_imgs/'

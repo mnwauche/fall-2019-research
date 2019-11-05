@@ -10,7 +10,13 @@
     - python -m http.server
     - navigate to: http://localhost:8000/pgan_vis/
 
-- to do Week 12/28 - 11/2
+- to do immediately (updated 11-5):
+    - add to viz: 
+        - original sample tsne plot; 
+        - colormap for all netG and netD layers based on above plot
+        - discriminator layers; colormap;
+
+- later to do:
     - debugging demo viz
     - interactivity on demo viz
         - distance heatmap on select

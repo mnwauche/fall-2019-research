@@ -10,15 +10,12 @@
     <body>
     <script type='text/javascript' src='visualizations.js'></script>
     <script type='text/javascript'>
-        d3.json('g_samples.json')
+        d3.json('samples.json')
 		  .then(function(data)  {
-              g_sample_data = data;
-              plot_it();
-			  //return d3.json('d_samples.json');
-		  });//.then(function(data)  {
-            //   d_sample_data = data;
-            //   plot_it();
-		 // });
+               sampleGroups = data;
+               plot_it()
+		       return d3.json('samples.json');
+		  });
     </script>
     </body>
 
