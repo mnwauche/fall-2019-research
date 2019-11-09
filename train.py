@@ -57,11 +57,9 @@ if __name__ == "__main__":
                         on")
     parser.add_argument('-v', '--partitionValue', help="Partition's value",
                         type=str, dest="partition_value")
-    parser.add_argument('-xx', '--null', help='Don\'t train, only sample', action='store_true')
-    parser.add_argument('-nG', '--sampleG', help='Number of Generator feature map samples to save',
-                        type=int, default=-1)
-    parser.add_argument('-nD', '--sampleD', help='Number of Discriminator feature map samples to save',
-                        type=int, default=-1)
+    parser.add_argument('-xT', '--sampleOnly', help='Don\'t train, only sample', action='store_true')
+    parser.add_argument('-nS', '--nSamples', help='Number of feature map samples to save',
+                        type=int, default=150, dest="n_samples")
 
 
     # Retrieve the model we want to launch
@@ -144,51 +142,11 @@ if __name__ == "__main__":
     # # generating / saving feature map samples
     netG, netD = GANTrainer.model.netG, GANTrainer.model.netD
 
-    if generateSamples:
-        generate_samples(netG, netD, GANTrainer.model.buildNoiseData(n_samples)[0]) # get the first part of the noise data
-    # second part is labels
+    # if generateSamples:
+    #     from helpers import publish_samples
+    #     n_samples = 150 # kwargs["n_samples"]
+    #     breakpoint()
+    #     publish_samples(netG, netD, GANTrainer.model.buildNoiseData(n_samples)[0]) # get the first part of the noise data, second part is labels
 
-    # model = GANTrainer.model
-    # N_SAMPLES = 150
-    # SAMPLES_DIR = 'pgan_vis/sample_imgs/'
-
-    # import helpers
-    # sample_gs = helpers.netG_slow_forward(GANTrainer.model.netG, GANTrainer.model.buildNoiseData(N_SAMPLES)[0])
-    # import numpy as np
-    # from sklearn.manifold import TSNE
-
-    # feature_map_gs = [sample_gs[i][0] for i in range(len(sample_gs))]
-    # layers = [sample_gs[i][1] for i in range(len(sample_gs)-1)] #exclude output layer
-
-    # out_imgs = feature_map_gs[-1]
-
-    # # flatten
-    # map_data_gs = []
-    # for map_data in feature_map_gs[0:len(feature_map_gs)-1]: #exclude output data group
-    #     samples = [sample.flatten().copy() for sample in map_data]
-    #     assert np.array(samples).shape[0] == N_SAMPLES
-    #     map_data_gs.append(np.array(samples))
-
-    # # reduce dimensions using TSNE
-    # rd_map_data_gs = [TSNE(n_components=2).fit_transform(samples).copy() for samples in map_data_gs]
-    
-    # out = []
-    # # item() => from numpy float to float
-    # # list of samples w
-    # for i in range(N_SAMPLES):
-    #     sample = {'path': f'sample{i}.png'}
-    #     for j, layer in enumerate(layers):
-    #         sample[layer] = {'tsne1': rd_map_data_gs[j][i][0].item(), 'tsne2': rd_map_data_gs[j][i][1].item( )}
-    #     out.append(sample)
-
-    # # save last layer to img directory
-    # from PIL import Image
-    # for i, image in enumerate(out_imgs):
-    #     img = Image.fromarray(np.uint8(np.moveaxis(image, 0, -1)*255)) # change from channels first to channels last
-    #     img.save(SAMPLES_DIR + f'sample{i}.png')
-
-    # # write sampels to json file
-    # with open('pgan_vis/g_samples.json', 'w') as f_json:
-    #     json.dump(out, f_json)
-
-    GANTrainer.train()
+    if not kwargs['sample_only']:
+        GANTrainer.train()

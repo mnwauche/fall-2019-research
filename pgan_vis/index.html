@@ -12,9 +12,8 @@
     <script type='text/javascript'>
         d3.json('samples.json')
 		  .then(function(data)  {
-               sampleGroups = data;
+               layerData = data;
                plot_it()
-		       return d3.json('samples.json');
 		  });
     </script>
     </body>
