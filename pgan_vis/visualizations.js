@@ -15,9 +15,8 @@ function plot_it()  {
     var netD_bandScale = d3.scaleBand().domain(layerData.filter(layer => layer.net == 'D').map(layer => layer.key)).range([0, (svg_width - pad)*(4/9)]).paddingInner(0.1)
 
     // var network_bandScale = d3.scaleBand().domain(['G', 'D']).range([svg_height/2, 0])
-
     var netG_scatter_size = netG_bandScale.bandwidth()
-    // var netD_scatter_size = netD_bandScale.bandwidth()
+    var netD_scatter_size = netD_bandScale.bandwidth()
     layerScales = {}
 
     // scales for each scatterplot
@@ -34,7 +33,7 @@ function plot_it()  {
     d3.select('#svg0').append('g').attr('transform', 'translate('+(pad)+','+(pad)+')').attr('id', 'generator')
     d3.select('#svg0').append('g').attr('transform', 'translate('+(pad)+','+(pad*2+netG_scatter_size)+')').attr('id', 'discriminator')
 
-    // colormap
+    // CHANGE COLORMAP LAYER HERE
     plot0 = layerData.filter(d => d.key == 'netG_output')[0]
     var hue_scale = d3.scaleLinear().domain(layerScales[plot0.key].tsne1.domain()).range([0, 180])
     var chroma_scale = d3.scaleLinear().domain(layerScales[plot0.key].tsne2.domain()).range([20, 90])
@@ -64,16 +63,16 @@ function plot_it()  {
         .attr('height', mark_size_small) 
 
     // discriminator 
-    generator_select = d3.select('#discriminator').selectAll('layers').data(layerData.filter(layer => layer.net == 'D')).enter().append('g')
+    discrim_select = d3.select('#discriminator').selectAll('layers').data(layerData.filter(layer => layer.net == 'D')).enter().append('g')
         .attr('transform', d => 'translate('+netD_bandScale(d.key)+',0)')
         .attr('class', 'plot')
 
-    generator_select.append('rect') // background fill for plots
+    discrim_select.append('rect') // background fill for plots
         .attr('x', 0).attr('y', 0)
         .attr('fill', 'gray').attr('opacity', 0.3) 
-        .attr('width', netG_scatter_size).attr('height', netG_scatter_size)
+        .attr('width', netD_scatter_size).attr('height', netD_scatter_size)
 
-    generator_select.selectAll('empty').data(layerData => {
+    discrim_select.selectAll('empty').data(layerData => {
         return layerData.values.map(sample => {
             sample.key = layerData.key // add key for accessing scale
             return sample
@@ -86,40 +85,13 @@ function plot_it()  {
             return d3.hcl(hue_scale(plot0.values[i].tsne1), chroma_scale(plot0.values[i].tsne2), 60) // color scale based on the chosen layer
         }).attr('width', mark_size_small)
         .attr('height', mark_size_small) 
-
-    // discriminator
-    // dscrm_select = d3.select('#discriminator').selectAll('layers').data(by_layer_data).enter().append('g')
-    //     .attr('transform', d => 'translate('+layer_band_scale(d.key)+',0)')
-    //     .attr('class', 'plot')
-
-    // dscrm_select.append('rect') // background fill for plots
-    //     .attr('x', 0).attr('y', 0)
-    //     .attr('fill', 'gray').attr('opacity', 0.3) 
-    //     .attr('width', layer_band_scale.bandwidth()).attr('height', layer_band_scale.bandwidth())
-
-    // dscrm_select.selectAll('empty').data(layer_data => {
-    //     return layer_data.values.map(sample => {
-    //         sample.key = layer_data.key // add key for accessing scale
-    //         return sample
-    //     })
-    // }).enter()
-    // .append('rect')
-    //     .attr('x', d => layer_scales[d.key].tsne1(d.tsne1))
-    //     .attr('y', d => layer_scales[d.key].tsne2(d.tsne2))
-    //     .attr('fill', (d, i) =>  {
-    //         return d3.hcl(hue_scale(plot0[i].tsne1), chroma_scale(plot0[i].tsne2), 60)
-    //     }).attr('width', mark_size_small)
-    //     .attr('height', mark_size_small) // to do: add images and interactivity
-
     
-    // encode x, y for first layer with hcl colorspace
-    // change x based on hue, y ba
+    var plot_select = d3.selectAll('.plot').append('text')
+        .text(d => d.key)
+    
     // interactivty: 
     //  distance heatmap on select
     //  add simultaneous selection across different layers
     //  enlarge when hovered, highlight on click
     // add feature maps enlarge on select
-
-
-    // to do: add images and interactivity
 }

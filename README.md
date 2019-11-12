@@ -1,14 +1,18 @@
 # Title
 
 ## Usage
-### Training the model (Progressive GAN)
+### Training the model (Progressive GAN, WGANGP loss)
 - Activate visdom server before training to monitor progress:
     - python -m visdom.server
+    
+- Train PGAN, load most recently saved model. Save every (S) batches (batch size 16). Run this in another shell.
+    - python train.py PGAN -c config_cifar10.json -n cifar10 -s (S)
 
-- Train PGAN, save model every <S> batches (batch size 16)
-    - python train.py PGAN -c config_cifar10.json -n cifar10 -s <S>
+- navigate to the url specified in visdom shell (usually http://localhost:8097) to monitor training
 
 ### Visualization
+- generate (N) new feature map samples without training the model
+    - python train.py PGAN -c config_cifar10.json -n cifar10 -nS (N) -xT
 - Activate the web server: '''python -m http.server'''
 - navigate to http://localhost:8000/pgan_vis/
 

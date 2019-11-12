@@ -59,7 +59,7 @@ if __name__ == "__main__":
                         type=str, dest="partition_value")
     parser.add_argument('-xT', '--sampleOnly', help='Don\'t train, only sample', action='store_true')
     parser.add_argument('-nS', '--nSamples', help='Number of feature map samples to save',
-                        type=int, default=150, dest="n_samples")
+                        type=int, default=-1, dest="n_samples")
 
 
     # Retrieve the model we want to launch
@@ -142,11 +142,10 @@ if __name__ == "__main__":
     # # generating / saving feature map samples
     netG, netD = GANTrainer.model.netG, GANTrainer.model.netD
 
-    # if generateSamples:
-    #     from helpers import publish_samples
-    #     n_samples = 150 # kwargs["n_samples"]
-    #     breakpoint()
-    #     publish_samples(netG, netD, GANTrainer.model.buildNoiseData(n_samples)[0]) # get the first part of the noise data, second part is labels
+    breakpoint()
+    if baseArgs.n_samples != -1:
+        from helpers import publish_samples
+        publish_samples(netG, netD, GANTrainer.model.buildNoiseData(baseArgs.n_samples)[0]) # get the first part of the noise data, second part is labels
 
-    if not kwargs['sample_only']:
+    if not baseArgs.sampleOnly:
         GANTrainer.train()
