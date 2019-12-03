@@ -16,7 +16,7 @@
 - Activate the web server: '''python -m http.server'''
 - navigate to http://localhost:8000/pgan_vis/
 
-
+- python train.py PGAN -c config_cifar10.json -n cifar10 -nS 150 -xT
 ## To do
 - 11-3 - 11-9
     - input plot; 
@@ -25,6 +25,18 @@
 
 - 11-10 - 11-16:
     - interactivity:
-        - distance heatmap on select
-        - simultaenous selection on different layers
+        - brush select
+        - image grid
+
+- 11-17 - 11-23:
+    - brush
+    - change sample layers 
+    - image grid
+
+- 11-24 - 11-30:
+    - image grid
+
+- 12-1 - 12-7
+
     - loss function for evaluating distance between samples
+

@@ -2,80 +2,86 @@ from models.utils.utils import num_flat_features
 from models.networks.custom_layers import Upscale2d
 
 def netG_forward(netG, x):
+    # sample => after convolution-activation for each convolutional group
     interm_results = []
-    interm_results.append({'key': 'input', 'values': x})
+    # interm_results.append({'key': 'input', 'values': x})
 
-    ## Normalize the input ?
-    if netG.normalizationLayer is not None:
+    if netG.normalizationLayer is not None: # normalized input?
         x = netG.normalizationLayer(x)
-        # interm_results.append([x, 'normalization'])
-    x = x.view(-1, num_flat_features(x)) # flatten input?
-    # interm_results.append([x, 'flatening'])
+    x = x.view(-1, num_flat_features(x)) # flattens input
     
-    # format layer
-    x = netG.leakyRelu(netG.formatLayer(x))
-    # interm_results.append([x, 'format1'])
-    x = x.view(x.size()[0], -1, 4, 4) # reshape
+    x = netG.leakyRelu(netG.formatLayer(x)) # format layer (1, 16)
+    x = x.view(x.size()[0], -1, 4, 4) # reshape (4, 4)
     x = netG.normalizationLayer(x)
-    interm_results.append({'key': 'format_layer', 'values': x})
+    # interm_results.append({'key': 'format_layer', 'values': x})
     
     # Scale 0 (no upsampling)
-    i = 0
     for convLayer in netG.groupScale0:
         x = netG.leakyRelu(convLayer(x))
         if netG.normalizationLayer is not None:
             x = netG.normalizationLayer(x)
-        interm_results.append({'key': f'scale0_{i}', 'values': x})
-        i += 1
+    interm_results.append({'key': 'g-group0', 'values': x})
+        
         
     # Dirty, find a better way
-    if netG.alpha > 0 and len(netG.scaleLayers) == 1:
+    if netG.alpha > 0 and len(netG.scaleLayers) == 1: # only applies for size (8, 8)
+        # scale lower resolution output for blending
+        # y.shape = last scaleLayer.shape * 2 
         y = netG.toRGBLayers[-2](x)
         y = Upscale2d(y)
-        interm_results.append({'key': 'scale1', 'values': x})
+        # interm_results.append({'key': 'y', 'values': x}) add if convolutional, if not, don't add
 
     # Upper scales
-    for scale, layerGroup in enumerate(netG.scaleLayers, 0):
+    for scale, layerGroup in enumerate(netG.scaleLayers, 0): #?? start default is 0
 
         x = Upscale2d(x)
 
-        conv_n = 0
         for convLayer in layerGroup:
             x = netG.leakyRelu(convLayer(x))
             if netG.normalizationLayer is not None:
                 x = netG.normalizationLayer(x)
                 
-            interm_results.append({'key': f'upper_scales_{scale}_{conv_n}', 'values': x})
-            conv_n += 1
+        interm_results.append({'key': f'g-group{scale + 1}', 'values': x})
 
 
-        if netG.alpha > 0 and scale == (len(netG.scaleLayers) - 2):
+        if netG.alpha > 0 and scale == (len(netG.scaleLayers) - 2): # never true for output size (8, 8)
+            # scale lower resolution output for blending
+            # y.shape = second to last scaleLayer.shape * 2
             y = netG.toRGBLayers[-2](x)
             y = Upscale2d(y)
 
-            interm_results.append({f'upper_scales_{scale}_y': y})
+        #    interm_results.append({f'group{scale + 1}-toRGB': y}) add if conolutional, if not, don't add
 
     # To RGB (no alpha parameter for now)
     x = netG.toRGBLayers[-1](x)
-    interm_results.append({'key': 'x_toRGB', 'values': x})
 
-    # Blending with the lower resolution output when alpha > 0
+    # blending with the last scaleLayer output upscaled-formatted second to last scaleLayer output when alpha > 0
+    # lowers the weight of final layer during when adding scale
     if netG.alpha > 0:
         x = netG.alpha * y + (1.0-netG.alpha) * x
-    interm_results.append({'key': 'blending', 'values': x})
         
     if netG.generationActivation is not None:
         x = netG.generationActivation(x)
-    interm_results.append({'key': 'netG_output', 'values': x})
+    interm_results.append({'key': f'g-group{len(netG.scaleLayers) + 1}', 'values': x})
 
-    # remove results from graph
+    # BREAKPOINT
+    # num convLayers in groupScale0 (2 according viz)
+    # number of layerGroups in netG.scaleLayers (2^(n - 2) = output_shape according to chart)
+    # num convLayers in layerGroups (should be 2)
+    #  should be 1 for output (8, 8)
+    # check enumerate(scaleLayers, 0) = enumerate(scaleLayers)
+    # check if to RGB is convolutional
+
+    # remove results from graph, add shape, add net
     for item in interm_results:
         item['net'] = 'G'
         item['values'] = item['values'].detach().numpy()
+        # item['key'] = item['key'] + f' {item['values'].shape()}'
 
     return interm_results
 
 def netD_forward(netD, x):
+    # sample: after downsample for each convolutional group
     import torch.nn as nn
     import torch.nn.functional as F
     from models.networks.mini_batch_stddev_module import miniBatchStdDev
@@ -87,11 +93,10 @@ def netD_forward(netD, x):
     if netD.alpha > 0 and len(netD.fromRGBLayers) > 1:
         y = F.avg_pool2d(x, (2, 2))
         y = netD.leakyRelu(netD.fromRGBLayers[- 2](y))
-        results.append({'key': 'alpha_blending', 'values': y})
 
     # From RGB layer
     x = netD.leakyRelu(netD.fromRGBLayers[-1](x))
-    results.append({'key': 'from_rgb', 'values': x})
+    results.append({'key': 'd-group0', 'values': x})
 
     # Caution: we must explore the layers group in reverse order !
     # Explore all scales before 0
@@ -103,12 +108,11 @@ def netD_forward(netD, x):
             x = netD.leakyRelu(layer(x))
 
         x = nn.AvgPool2d((2, 2))(x)
-        results.append({'key': f'group_{group_idx}_avgPool', 'values': x})
 
         if mergeLayer:
             mergeLayer = False
             x = netD.alpha * y + (1-netD.alpha) * x
-            results.append({'key': f'group_{group_idx}_mergLayer', 'values': x})
+        results.append({'key': f'd-group{group_idx + 1}', 'values': x})
 
         shift -= 1
 
@@ -125,12 +129,13 @@ def netD_forward(netD, x):
 
     out = netD.decisionLayer(x) 
 
-    results.append({'key': 'decisionLayer', 'values': out})
+    results.append({'key': f'd-group{len(netD.scaleLayers) + 1}', 'values': out})
 
-    # remove results from graph
+    # remove results from graph, add shape, add net
     for item in results:
         item['net'] = 'D'
         item['values'] = item['values'].detach().numpy()
+    #    item['key'] = item['key'] + f' {item['values'].shape()}'
 
     return results
 
@@ -150,7 +155,7 @@ def publish_samples(netG, netD, noise):
     for net, netData in enumerate(samples):
         for layer_data in netData:
             layerData.append(layer_data)
-    imgLayerValues = np.array([x for x in layerData if x['key'] == 'netG_output'][0]['values'])
+    imgLayerValues = list(filter(lambda layer: layer['net'] == 'G', layerData))[-1]['values'] # get netG output
     print(f'IMAGE LAYER DATA SHAPE: {imgLayerValues.shape}')
 
 
