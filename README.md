@@ -37,6 +37,5 @@
     - image grid
 
 - 12-1 - 12-7
-
     - loss function for evaluating distance between samples
 
