@@ -1,4 +1,11 @@
-# Title
+# Human-in-the-Loop Training of Generative Models
+
+## Requirements
+    - pytorch
+    - numpy
+    - torchvision
+    - scipy
+    - visdom (optional, for monitoring training)
 
 ## Usage
 ### Training the model (Progressive GAN, WGANGP loss)
@@ -36,6 +43,6 @@
 - 11-24 - 11-30:
     - image grid
 
-- 12-1 - 12-7
-    - loss function for evaluating distance between samples
+- fix image grid
+- loss function for evaluating distance between samples
 
