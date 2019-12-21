@@ -174,6 +174,7 @@ def publish_samples(netG, netD, noise):
     for i, image in enumerate(imgLayerValues):
         img = Image.fromarray(np.uint8(np.moveaxis(image, 0, -1)*255)) 
         # change from channels first to channels last
+        img = img.resize((200, 200))
         img.save(SAMPLES_DIR + f'sample{i}.png')
 
     # write samples to json file

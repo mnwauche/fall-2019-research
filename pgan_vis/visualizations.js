@@ -1,18 +1,24 @@
 // 2D brushing
 // brush on, off
 // on brush, class as 'selected'
-function populate_imageGrid(selected_samples, imgGrid, imgWidth, imgHeight){
-    imgGrid.selectAll('g').selectAll('img').data(selected_samples).enter().append('image')
+function populate_imageGrid(selected_samples, imgGrid, imgCols, imgColBandScale, imgRowBandScale){
+    console.log(selected_samples.map(sample => sample.path))
+    d3.selectAll('#imgGrid').selectAll('.img').remove()
+    // update selection with new images
+    d3.select('#imgGrid').selectAll('g').data(selected_samples, function(d) {return d;}).enter()
+        .append('image')
         .attr('xlink:href', sample => {
-            console.log(new URL('sample_imgs/'+sample.path, window.location.href))
+            // console.log(new URL('sample_imgs/'+sample.path, window.location.href))
             return new URL('sample_imgs/'+sample.path, window.location.href)
         })
-        .attr('width', imgWidth)
-        .attr('height', imgHeight)
-    
+        .attr('width', imgColBandScale.bandwidth())
+        .attr('height', imgRowBandScale.bandwidth())
+        .attr('preserveAspectRatio', 'none')
+        .attr('class', 'img')
+        .attr('transform', (d, i) => 'translate(' +(imgColBandScale(i % imgCols))+', ' +imgRowBandScale(Math.floor(i / imgCols))+')')
 }
 
-function mouse_brush(plots_select, plot0, allSamples, layerScales, hue_scale, chroma_scale, scatter_size, imgGrid, imgWidth, imgHeight) {
+function mouse_brush(plots_select, plot0, allSamples, layerScales, hue_scale, chroma_scale, scatter_size, imgGrid, imgCols, rowBandScale, colBandScale) {
     var brush = d3.brush().extent([[0, 0], [scatter_size, scatter_size]])
 
     brush.on('start', function(d, i) {
@@ -45,7 +51,7 @@ function mouse_brush(plots_select, plot0, allSamples, layerScales, hue_scale, ch
         //     .attr('fill', d3.hcl(81, 99, 92)) // selected class color (yellow)
         // populate with first 20 selected samples
         var grid_size = imgGrid.selectAll('g').data().length
-        populate_imageGrid(selected_samples.slice(0, grid_size), imgGrid, imgWidth, imgHeight)
+        populate_imageGrid(selected_samples.slice(0, grid_size), imgGrid, imgCols, rowBandScale, colBandScale)
     });
 
     plots_select.call(brush)
@@ -128,7 +134,7 @@ function plot_it()  {
 
     imgGrid.selectAll('none').data(images)
     .enter().append('g')
-        .attr('transform',d => 'translate(' +(imgColBandScale(d % imgCols))+', ' +imgRowBandScale(Math.floor(d / imgCols))+')')
+        .attr('transform', (d, i) => 'translate(' +(imgColBandScale(i % imgCols))+', ' +imgRowBandScale(Math.floor(i / imgCols))+')')
     .append('rect')
         .attr('x', 0)
         .attr('y', 0)
@@ -197,7 +203,7 @@ function plot_it()  {
     
     var plots_select = d3.selectAll('.plot'); // plot group, including fill, axes, marks
     d3.selectAll('.plot').append('text').text(d => {return d}).attr('fill', 'black')
-    mouse_brush(plots_select, plot0, allSamples, layerScales, hue_scale, chroma_scale, netG_scatter_size, imgGrid, imgColBandScale.bandwidth(), imgRowBandScale.bandwidth()) // FIX: scatter sizes should be identical for both networks
+    mouse_brush(plots_select, plot0, allSamples, layerScales, hue_scale, chroma_scale, netG_scatter_size, imgGrid, imgCols, imgColBandScale, imgRowBandScale) // FIX: scatter sizes should be identical for both networks
         
     // interactivty: 
     //  distance heatmap on select
