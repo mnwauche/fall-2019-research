@@ -3,9 +3,9 @@
   "config": {
     "maxIterAtScale": [
       35100,
-      96000,
-      96000,
-      96000
+      46100,
+      20000,
+      20000
     ]
   },
   "imagefolderDataset": true

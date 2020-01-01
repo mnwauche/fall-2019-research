@@ -12,9 +12,12 @@
     <script type='text/javascript'>
         d3.json('samples.json')
 		  .then(function(data)  {
-               layerData = data;
-               plot_it()
-		  });
+              layerData = data;
+              return d3.json('lossData.json')
+		  }).then(function(data) {
+              lossData = data;
+              plot_it()
+          });
     </script>
     </body>
 

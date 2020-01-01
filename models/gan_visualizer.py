@@ -107,7 +107,7 @@ class GANVisualizer():
 
             remaining -= currBatch
 
-        toSave = torch.cat(out, dim=0)
+        toSave = torch.cat(out, dim=0) # combine the images into an img grid
         self.visualizer.saveTensor(
             toSave, (toSave.size()[2], toSave.size()[3]), path)
 

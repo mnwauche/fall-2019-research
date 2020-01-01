@@ -39,7 +39,7 @@ class ProgressiveGAN(BaseGAN):
         """
         if not 'config' in vars(self):
             self.config = BaseConfig()
-
+        
         self.config.depthScale0 = depthScale0
         self.config.initBiasToZero = initBiasToZero
         self.config.leakyReluLeak = leakyness
@@ -48,7 +48,8 @@ class ProgressiveGAN(BaseGAN):
         self.config.alpha = 0
         self.config.miniBatchStdDev = miniBatchStdDev
         self.config.equalizedlR = equalizedlR
-
+        #print(f'PROGRESIVE_GAN.PY CONFIG: {self.config}')
+        #print(f'vars(self): {vars(self)}')
         BaseGAN.__init__(self, dimLatentVector, **kwargs)
 
     def getNetG(self):

@@ -25,8 +25,8 @@ class BaseGAN():
                  baseLearningRate=0.001,
                  lossMode='WGANGP',
                  attribKeysOrder=None,
-                 weightConditionD=0.0,
-                 weightConditionG=0.0,
+                 weightConditionD=1.0,
+                 weightConditionG=1.0,
                  logisticGradReal=0.0,
                  lambdaGP=0.,
                  epsilonD=0.,
@@ -178,7 +178,9 @@ class BaseGAN():
 
         # #1 Real data
         predRealD = self.netD(self.real_input, False)
-
+        # added at scale 2, iter 5000
+        self.config.weightConditionD = 1
+        self.config.weightConditionG = 1
         # Classification criterion
         allLosses["lossD_classif"] = \
             self.classificationPenalty(predRealD,
@@ -231,7 +233,7 @@ class BaseGAN():
             if key.find("lossD") == 0:
                 lossD += val
 
-        allLosses["lossD"] = lossD
+        allLosses["lossD"] = lossD # the sum of all lossDs
 
         # Update the generator
         self.optimizerG.zero_grad()
@@ -263,7 +265,7 @@ class BaseGAN():
 
         finiteCheck(self.getOriginalG().parameters())
         self.optimizerG.step()
-
+        print(f'lossG_classif: {allLosses["lossG_classif"]}, lossD_classif: {allLosses["lossD_classif"]}')
         lossG = 0
         for key, val in allLosses.items():
 

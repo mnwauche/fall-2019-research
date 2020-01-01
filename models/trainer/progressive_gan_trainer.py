@@ -70,6 +70,7 @@ class ProgressiveGANTrainer(GANTrainer):
         """
 
         config = {key: value for key, value in vars(self.modelConfig).items()}
+        #print(f'CONFIG IN PROG GAN TRAINIER > initModel {config}')
         config["depthScale0"] = self.modelConfig.depthScales[0]
         self.model = ProgressiveGAN(useGPU=self.useGPU, **config)
 

@@ -74,8 +74,9 @@ function plot_it()  {
     var img_size = 120, img_pad = 10;
     var imgGridPadding = 0.2;
     var imgGridWidth = 600, imgGridHeight = imgGridWidth * (imgRows/imgCols); //inner and outer padding
-    svg_width = pad + imgGridWidth + scatterGridWidth + pad
-    svg_height = pad + imgGridHeight + pad
+    var trainPlotWidth = 500, trainPlotHeight = 200;
+    svg_width = pad + imgGridWidth + trainPlotWidth * lossData.length + pad
+    svg_height = pad + imgGridHeight + pad + 6000
 
     // scatter grid layout scales
     var netG_bandScale = d3.scaleBand().domain(layerData.filter(layer => layer.net == 'G').map(layer => layer.key)).range([0, scatterGridWidth]).paddingInner(0.1)
@@ -187,6 +188,69 @@ function plot_it()  {
         .attr('width', mark_size_small)
         .attr('height', mark_size_small) 
         .attr('class', 'mark')
+
+    // training plot
+    var trainPlotWidth = 600, trainPlotHeight = 200;
+    d3.select('#svg0').append('g').attr('transform', 'translate('+(pad + imgGridWidth)+','+(pad*3+ netG_scatter_size+netD_scatter_size)+')')
+        .attr('id', 'training')
+
+    var trainPlotBandScale = d3.scaleBand().domain(lossData.map(d => d.scale)).range([0, trainPlotWidth * lossData.length])
+        .paddingInner(0)
+
+
+    var showLines = ['lossD', 'lossG']
+    scale_y_extents = []
+    lossData.forEach(lossPerScale => {
+        var scale_x = d3.scaleLinear().domain(d3.extent(lossPerScale.iter)).range([0, trainPlotWidth])
+        showLines.forEach(key => {
+            scale_y_extents = scale_y_extents.concat(d3.extent(lossPerScale[key]))
+        })
+        var filteredKeys = Object.keys(lossPerScale).filter(key => showLines.includes(key))
+        lossPerScale.lineData = filteredKeys.map(key => {
+            var line_datum = {};
+            line_datum.scale_x = scale_x
+            line_datum.values = lossPerScale[key].map((d, i) => {return {'x': i*100, 'y': d}})
+            line_datum.key = key
+            line_datum.scale = lossPerScale.scale
+            return line_datum
+        })
+        lossPerScale.scale_x = scale_x
+    })
+    var loss_scale_y = d3.scaleLinear().domain(d3.extent(scale_y_extents)).range([trainPlotHeight, 0])
+
+    function lineClosure(scale_x, line_values){
+        var line = d3.line()
+            .x(val => scale_x(val.x))
+            .y(val => loss_scale_y(val.y))
+        return line(line_values)
+    }
+
+    var trainPlotSelect = d3.select('#training').selectAll('none').data(lossData).enter().append('g')
+        .attr('transform',d => 'translate(' +(trainPlotBandScale(d.scale))+', 0)')
+
+    // background fill 
+    trainPlotSelect.append('rect')
+            .attr('x', 0).attr('y', 0)
+            .attr('width', trainPlotWidth).attr('height', trainPlotHeight)
+            .attr('fill', 'gray').attr('opacity', .3)
+
+    // axes
+    trainPlotSelect.append('g').attr('class', 'yAxis').filter(function(d) {return d.scale == 0}).call(d3.axisLeft(loss_scale_y))
+
+    trainPlotSelect.append('g').attr('class', 'xAxis').each(function(d) {
+        d3.select(this).call(d3.axisBottom(d.scale_x)).attr('transform', 'translate(0, '+(trainPlotHeight)+')')
+    })
+    
+        //.call(d => d3.axisLeft(d.scale_y)).attr('transform', 'translate('+(-10)+', 0)')
+    // lines
+    trainPlotSelect.selectAll('none').data(lossPerScale => lossPerScale.lineData).enter()
+        .append('path')
+            .attr('fill', 'None')
+            .attr('stroke', 'red')
+            .attr('stroke-width', 2).attr('stroke-opacity', .12)  
+            .attr('d', lineDatum => lineClosure(lineDatum.scale_x, lineDatum.values))
+            //.attr('transform',lineDatum => 'translate(0, ' +(trainPlotBandScale(lineDatum.scale)+')'))
+
 
 
     d3.selectAll('.plot').each(function(layer)  {

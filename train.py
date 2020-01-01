@@ -141,10 +141,12 @@ if __name__ == "__main__":
 
     # # generating / saving feature map samples
     netG, netD = GANTrainer.model.netG, GANTrainer.model.netD
-
+    GANTrainer.model.weightConditionG = 1
+    GANTrainer.model.weightConditionD = 1
     if baseArgs.n_samples != -1:
         from helpers import publish_samples
         publish_samples(netG, netD, GANTrainer.model.buildNoiseData(baseArgs.n_samples)[0]) # get the first part of the noise data, second part is labels
 
+    #breakpoint()
     if not baseArgs.sampleOnly:
         GANTrainer.train()

@@ -1,5 +1,6 @@
 from models.utils.utils import num_flat_features
 from models.networks.custom_layers import Upscale2d
+import json
 
 def netG_forward(netG, x):
     # sample => after convolution-activation for each convolutional group
@@ -73,10 +74,11 @@ def netG_forward(netG, x):
     # check if to RGB is convolutional
 
     # remove results from graph, add shape, add net
-    for item in interm_results:
+    for item in interm_results: 
         item['net'] = 'G'
         item['values'] = item['values'].detach().numpy()
         # item['key'] = item['key'] + f' {item['values'].shape()}'
+    
 
     return interm_results
 
@@ -143,7 +145,7 @@ def netD_forward(netD, x):
 def publish_samples(netG, netD, noise):
     import torch
     import numpy as np
-    import json
+    
     SAMPLES_DIR = 'pgan_vis/sample_imgs/'
     netG_output = netG_forward(netG, noise)
     netD_output = netD_forward(netD, torch.tensor(netG_output[-1]['values']))
@@ -171,9 +173,20 @@ def publish_samples(netG, netD, noise):
                 
     # save netG output to img directory
     from PIL import Image
+    from torchvision.transforms import ToPILImage
     for i, image in enumerate(imgLayerValues):
-        img = Image.fromarray(np.uint8(np.moveaxis(image, 0, -1)*255)) 
+        # SHAPE BEFORE/AFTER MOVE AXIS?
+        # what's the effect of not moving the axis
+        # breakpoint()
+        # img = Image.fromarray(np.uint8(np.moveaxis(image, 0, -1)*255))
+        # img = Image.fromarray(np.uint8(image*255)) 
+        # img = ToPILImage()(np.uint8(image*255)) # message up images 
+        # try this:
+        img = Image.fromarray(np.uint8(np.transpose(image, (1, 2, 0))*255))
+
+        # breakpoint()
         # change from channels first to channels last
+    
         img = img.resize((200, 200))
         img.save(SAMPLES_DIR + f'sample{i}.png')
 
@@ -181,4 +194,11 @@ def publish_samples(netG, netD, noise):
     with open('pgan_vis/samples.json', 'w') as f_json:
         json.dump(layerData, f_json)
 
-
+def lossDataToJSON():
+    import pickle as pkl
+    lossData = pkl.load(open('output_networks/cifar10/cifar10_losses.pkl', 'rb'))
+    with open('pgan_vis/lossData.json',  'w') as f_json:
+        json.dump(lossData, f_json)
+        
+if __name__ == '__main__':
+    lossDataToJSON()
