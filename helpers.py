@@ -182,7 +182,8 @@ def publish_samples(netG, netD, noise):
         # img = Image.fromarray(np.uint8(image*255)) 
         # img = ToPILImage()(np.uint8(image*255)) # message up images 
         # try this:
-        img = Image.fromarray(np.uint8(np.transpose(image, (1, 2, 0))*255))
+        img = Image.fromarray(np.uint8(np.transpose(image, (1, 2, 0))*255)) # original (1, 2, 0)
+        # try (2, 1, 0) for affect on colors
 
         # breakpoint()
         # change from channels first to channels last

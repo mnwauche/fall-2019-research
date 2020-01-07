@@ -2,7 +2,6 @@
 // brush on, off
 // on brush, class as 'selected'
 function populate_imageGrid(selected_samples, imgGrid, imgCols, imgColBandScale, imgRowBandScale){
-    console.log(selected_samples.map(sample => sample.path))
     d3.selectAll('#imgGrid').selectAll('.img').remove()
     // update selection with new images
     d3.select('#imgGrid').selectAll('g').data(selected_samples, function(d) {return d;}).enter()
@@ -75,7 +74,7 @@ function plot_it()  {
     var imgGridPadding = 0.2;
     var imgGridWidth = 600, imgGridHeight = imgGridWidth * (imgRows/imgCols); //inner and outer padding
     var trainPlotWidth = 500, trainPlotHeight = 200;
-    svg_width = pad + imgGridWidth + trainPlotWidth * lossData.length + pad
+    svg_width = pad + imgGridWidth + trainPlotWidth * (lossData.length + 1) + pad*6
     svg_height = pad + imgGridHeight + pad + 6000
 
     // scatter grid layout scales
@@ -189,6 +188,22 @@ function plot_it()  {
         .attr('height', mark_size_small) 
         .attr('class', 'mark')
 
+        d3.selectAll('.plot').each(function(layer)  {
+            var scale_x = layerScales[layer].tsne1, scale_y = layerScales[layer].tsne2;
+            d3.select(this).selectAll('.mark')
+                .attr('x', d => scale_x(d[layer].tsne1)).attr('y', d => scale_y(d[layer].tsne2))
+                .attr('fill', (d, i) =>  {
+                    return d3.hcl(hue_scale(d[plot0].tsne1), chroma_scale(d[plot0].tsne2), 60) // color scale based on the chosen layer
+                })
+            //d3.select(this).append('g').attr('transform', 'translate(0,0)').call(d3.axisLeft(scale_y).ticks(4))
+            //d3.select(this).append('g').attr('transform', 'translate(0,'+plot_height+')').call(d3.axisBottom(scale_x).ticks(4))
+        })
+        
+        
+        var plots_select = d3.selectAll('.plot'); // plot group, including fill, axes, marks
+        d3.selectAll('.plot').append('text').text(d => {return d}).attr('fill', 'black')
+        mouse_brush(plots_select, plot0, allSamples, layerScales, hue_scale, chroma_scale, netG_scatter_size, imgGrid, imgCols, imgColBandScale, imgRowBandScale) // FIX: scatter sizes should be identical for both networks
+
     // training plot
     var trainPlotWidth = 600, trainPlotHeight = 200;
     d3.select('#svg0').append('g').attr('transform', 'translate('+(pad + imgGridWidth)+','+(pad*3+ netG_scatter_size+netD_scatter_size)+')')
@@ -200,74 +215,80 @@ function plot_it()  {
 
     var showLines = ['lossD', 'lossG']
     scale_y_extents = []
-    lossData.forEach(lossPerScale => {
-        var scale_x = d3.scaleLinear().domain(d3.extent(lossPerScale.iter)).range([0, trainPlotWidth])
-        showLines.forEach(key => {
-            scale_y_extents = scale_y_extents.concat(d3.extent(lossPerScale[key]))
+    // one line per attribute over all scales in lossData.lines in order of showLines
+
+    lossData.lines = []
+    showLines.forEach(lossAttr => {
+        var lineVals = []
+        lossData.forEach(lossScale => {
+            scale_y_extents = scale_y_extents.concat(d3.extent(lossScale[lossAttr]))        
+            lineVals = lineVals.concat(lossScale[lossAttr].map((d, i) => {
+                var scale = lossScale.scale
+                var x_buff = 0
+                if(scale !== 0){
+                    lossData.filter(loss => loss.scale <  lossScale.scale).forEach(loss => {
+                        x_buff = x_buff + loss.iter.length
+                    })
+                }
+                return scale == 0 ?  {'x': (i+1)*100, 'y':  d} : {'x': (i+1 + x_buff) * 100, 'y': d}
+            }))
         })
-        var filteredKeys = Object.keys(lossPerScale).filter(key => showLines.includes(key))
-        lossPerScale.lineData = filteredKeys.map(key => {
-            var line_datum = {};
-            line_datum.scale_x = scale_x
-            line_datum.values = lossPerScale[key].map((d, i) => {return {'x': i*100, 'y': d}})
-            line_datum.key = key
-            line_datum.scale = lossPerScale.scale
-            return line_datum
-        })
-        lossPerScale.scale_x = scale_x
+        lossData.lines.push({'key': lossAttr, 'values': lineVals})
     })
+
+    // lossData.forEach(lossPerScale => {
+    //     var scale_x = d3.scaleLinear().domain(d3.extent(lossPerScale.iter[lossPerScale])).range([0, trainPlotWidth])
+    //     showLines.forEach(key => {
+    //         scale_y_extents = scale_y_extents.concat(d3.extent(lossPerScale[key]))
+    //     })
+    //     var filteredKeys = Object.keys(lossPerScale).filter(key => showLines.includes(key))
+    //     lossPerScale.lineData = filteredKeys.map(key => {
+    //         var line_datum = {};
+    //         line_datum.scale_x = scale_x
+    //         line_datum.values = lossPerScale[key].map((d, i) => {return {'x': i*100, 'y': d}})
+    //         line_datum.key = key
+    //         line_datum.scale = lossPerScale.scale
+    //         return line_datum
+    //     })
+    //     lossPerScale.scale_x = scale_x
+    // })
+    
+    var loss_scale_x = d3.scaleLinear().domain(d3.extent(lossData.lines[0].values.map(d => d.x))).range([0, trainPlotWidth*lossData.length])
     var loss_scale_y = d3.scaleLinear().domain(d3.extent(scale_y_extents)).range([trainPlotHeight, 0])
 
-    function lineClosure(scale_x, line_values){
-        var line = d3.line()
-            .x(val => scale_x(val.x))
-            .y(val => loss_scale_y(val.y))
-        return line(line_values)
-    }
+    var line = d3.line()
+        .x(val => loss_scale_x(val.x))
+        .y(val => loss_scale_y(val.y))
 
-    var trainPlotSelect = d3.select('#training').selectAll('none').data(lossData).enter().append('g')
-        .attr('transform',d => 'translate(' +(trainPlotBandScale(d.scale))+', 0)')
+    var trainPlotSelect = d3.select('#training').selectAll('none').data([lossData]).enter().append('g')
+        //.attr('transform',d => 'translate(' +(trainPlotBandScale(d.scale))+', 0)')
 
     // background fill 
     trainPlotSelect.append('rect')
             .attr('x', 0).attr('y', 0)
-            .attr('width', trainPlotWidth).attr('height', trainPlotHeight)
+            .attr('width', trainPlotWidth * lossData.length).attr('height', trainPlotHeight)
             .attr('fill', 'gray').attr('opacity', .3)
 
     // axes
-    trainPlotSelect.append('g').attr('class', 'yAxis').filter(function(d) {return d.scale == 0}).call(d3.axisLeft(loss_scale_y))
+    trainPlotSelect.append('g').attr('class', 'yAxis').call(d3.axisLeft(loss_scale_y))
 
-    trainPlotSelect.append('g').attr('class', 'xAxis').each(function(d) {
-        d3.select(this).call(d3.axisBottom(d.scale_x)).attr('transform', 'translate(0, '+(trainPlotHeight)+')')
-    })
+    trainPlotSelect.append('g').attr('class', 'xAxis').call(d3.axisBottom(loss_scale_x)).attr('transform', 'translate(0, '+(trainPlotHeight)+')')
     
-        //.call(d => d3.axisLeft(d.scale_y)).attr('transform', 'translate('+(-10)+', 0)')
+    
+    //.call(d => d3.axisLeft(d.scale_y)).attr('transform', 'translate('+(-10)+', 0)')
     // lines
-    trainPlotSelect.selectAll('none').data(lossPerScale => lossPerScale.lineData).enter()
+    trainPlotSelect.selectAll('none').data(lossDataArray => {
+            return lossDataArray.lines
+        }).enter()
         .append('path')
             .attr('fill', 'None')
             .attr('stroke', 'red')
             .attr('stroke-width', 2).attr('stroke-opacity', .12)  
-            .attr('d', lineDatum => lineClosure(lineDatum.scale_x, lineDatum.values))
+            .attr('d', line_datum => line(line_datum.values))
             //.attr('transform',lineDatum => 'translate(0, ' +(trainPlotBandScale(lineDatum.scale)+')'))
 
 
-
-    d3.selectAll('.plot').each(function(layer)  {
-        var scale_x = layerScales[layer].tsne1, scale_y = layerScales[layer].tsne2;
-        d3.select(this).selectAll('.mark')
-            .attr('x', d => scale_x(d[layer].tsne1)).attr('y', d => scale_y(d[layer].tsne2))
-            .attr('fill', (d, i) =>  {
-                return d3.hcl(hue_scale(d[plot0].tsne1), chroma_scale(d[plot0].tsne2), 60) // color scale based on the chosen layer
-            })
-        //d3.select(this).append('g').attr('transform', 'translate(0,0)').call(d3.axisLeft(scale_y).ticks(4))
-        //d3.select(this).append('g').attr('transform', 'translate(0,'+plot_height+')').call(d3.axisBottom(scale_x).ticks(4))
-    })
-    
-    
-    var plots_select = d3.selectAll('.plot'); // plot group, including fill, axes, marks
-    d3.selectAll('.plot').append('text').text(d => {return d}).attr('fill', 'black')
-    mouse_brush(plots_select, plot0, allSamples, layerScales, hue_scale, chroma_scale, netG_scatter_size, imgGrid, imgCols, imgColBandScale, imgRowBandScale) // FIX: scatter sizes should be identical for both networks
+    // continue
         
     // interactivty: 
     //  distance heatmap on select

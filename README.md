@@ -22,12 +22,13 @@ This project is builds on Facebook's PyTorch GAN Zoo (https://github.com/faceboo
 ### Visualization
 - generate (N) new feature map samples (size 200x200) without training the model
     - python train.py PGAN -c config_cifar10.json -n cifar10 -nS (N) -xT
+    python train.py PGAN -c config_cifar10.json -n cifar10 -nS 150 -xT
 - Prep loss binary for visualization
     - python helpers.py
 - Activate the web server: '''python -m http.server'''
 - navigate to http://localhost:8000/pgan_vis/
 
-![screenshot](screenshot2.PNG)
+![screenshot](screenshot.PNG)
 
 ## To do
 - 11-3 - 11-9
