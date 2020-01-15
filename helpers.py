@@ -1,6 +1,7 @@
 from models.utils.utils import num_flat_features
 from models.networks.custom_layers import Upscale2d
 import json
+import os
 
 def netG_forward(netG, x):
     # sample => after convolution-activation for each convolutional group
@@ -147,6 +148,12 @@ def publish_samples(netG, netD, noise):
     import numpy as np
     
     SAMPLES_DIR = 'pgan_vis/sample_imgs/'
+
+    # delete samples from dir
+    filelist = [f for f in os.listdir(SAMPLES_DIR) if f.endswith(".png")]
+    for f in filelist:
+        os.remove(os.path.join(SAMPLES_DIR, f))
+
     netG_output = netG_forward(netG, noise)
     netD_output = netD_forward(netD, torch.tensor(netG_output[-1]['values']))
 
@@ -158,6 +165,7 @@ def publish_samples(netG, netD, noise):
         for layer_data in netData:
             layerData.append(layer_data)
     imgLayerValues = list(filter(lambda layer: layer['net'] == 'G', layerData))[-1]['values'] # get netG output
+    layerData.append({'key': 'input', 'values': noise.detach().numpy(), 'net': 'none'})
     print(f'IMAGE LAYER DATA SHAPE: {imgLayerValues.shape}')
 
 
@@ -165,12 +173,14 @@ def publish_samples(netG, netD, noise):
     for data in layerData:
         if data['key'] == 'netG_samples': # exclude output layer for netG
             pass
+        elif data['key'] == 'input':
+            flat_vals = np.array([sample.flatten().copy() for sample in data['values']])
+            data['values'] = [{'path': f'sample{index}.png', 'noise': val.tolist()} for index, val in enumerate(flat_vals)]
         else:
             flat_vals = np.array([sample.flatten().copy() for sample in data['values']]) # flatten each sample
             reduced_vals = TSNE(n_components=2).fit_transform(flat_vals).copy()
-            reduced_vals = [{'path': f'sample{index}.png', 'tsne1': val[0].item(), 'tsne2': val[1].item()} for index, val in enumerate(reduced_vals)]
-            data['values'] = reduced_vals
-                
+            data['values'] = [{'path': f'sample{index}.png', 'tsne1': val[0].item(), 'tsne2': val[1].item()} for index, val in enumerate(reduced_vals)]
+    
     # save netG output to img directory
     from PIL import Image
     from torchvision.transforms import ToPILImage
@@ -182,7 +192,7 @@ def publish_samples(netG, netD, noise):
         # img = Image.fromarray(np.uint8(image*255)) 
         # img = ToPILImage()(np.uint8(image*255)) # message up images 
         # try this:
-        img = Image.fromarray(np.uint8(np.transpose(image, (1, 2, 0))*255)) # original (1, 2, 0)
+        img = Image.fromarray(np.uint8(np.transpose(((image + 1)/2), (1, 2, 0))*255)) # normalize [-1, 1] to [0, 255]
         # try (2, 1, 0) for affect on colors
 
         # breakpoint()

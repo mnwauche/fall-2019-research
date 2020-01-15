@@ -204,9 +204,61 @@ function plot_it()  {
         d3.selectAll('.plot').append('text').text(d => {return d}).attr('fill', 'black')
         mouse_brush(plots_select, plot0, allSamples, layerScales, hue_scale, chroma_scale, netG_scatter_size, imgGrid, imgCols, imgColBandScale, imgRowBandScale) // FIX: scatter sizes should be identical for both networks
 
+    
+    // heatmap distance matrix 
+    // latent vector samples on bivariate color map
+    var hmWidth = 800, hmHeight = 400
+    d3.select('#svg0').append('g').attr('transform', 'translate('+(pad + imgGridWidth)+', '+(pad*3 + netG_scatter_size+netD_scatter_size)+')')
+        .attr('id', 'hm')
+    var hm_data = []
+    var noiseInput = layerData.filter(layer => layer.key == 'input')[0].values
+    noiseInput.forEach(noise0 => {
+        noiseInput.forEach(noise1 => {
+            // euclidean distance is the square root of the sum of the squared differences 
+            var euc_distance = noise0.noise.map((n, index) => Math.pow((n - noise1.noise[index]), 2))
+            hm_data.push({'key0': noise0.path, 'key1': noise1.path, 'distance': Math.pow(d3.sum(euc_distance), 0.5)})
+        })
+    })
+    hm_extremes = d3.extent(hm_data.map(datum => datum.distance))
+    // heatmap scales
+    var hm_hue_scale = d3.scaleLinear().domain(hm_extremes).range([-1, 1]) // 0 or 260
+	var hm_lum_scale = d3.scaleLinear().domain(hm_extremes).range([-60, 60]) // 30 => 90 both colors
+	var hues = [0, 260]
+    var hm_chroma_scale = d3.scaleLinear().domain(hm_extremes).range([-80, 80]) // 0 => 80 both colors
+    
+    var hm_x_scale = d3.scaleBand().domain(noiseInput.map(n => n.path)).range([0, hmWidth]).paddingInner(.025)
+    var hm_y_scale = d3.scaleBand().domain(noiseInput.map(n => n.path)).range([0, hmHeight]).paddingInner(.025)
+    
+    function hm_color_scale (d) {
+		hue = hm_hue_scale(d.distance)
+		hue = hue >= 0 ? hues[1] : hues[0]
+		chroma = hm_chroma_scale(d.distance)
+		chroma = chroma >= 0 ? chroma : chroma * -1
+		lum = hm_lum_scale(d.distance)
+		lum = lum <= 0 ? lum + 90 : (lum * -1) + 90 //
+		return d3.hcl(hue, chroma, lum)
+    }
+    
+    var hm_select = d3.select('#hm').selectAll('cell').data(hm_data).enter()
+
+    // heatmap selection
+	hm_select.append('rect')
+		.attr('x', d => hm_x_scale(d.key1))
+		.attr('y', d => hm_y_scale(d.key0))
+		.attr('width', hm_x_scale.bandwidth())
+		.attr('height', hm_y_scale.bandwidth())
+		.attr('fill', d => hm_color_scale(d))
+        .attr('class', 'cell')
+
+    // TO DO: add heat map color legend
+        
+    // console.log(hm_extremes)
+    // console.log(noiseInput)
+    // console.log(hm_data)
+
     // training plot
     var trainPlotWidth = 600, trainPlotHeight = 200;
-    d3.select('#svg0').append('g').attr('transform', 'translate('+(pad + imgGridWidth)+','+(pad*3+ netG_scatter_size+netD_scatter_size)+')')
+    d3.select('#svg0').append('g').attr('transform', 'translate('+(pad + imgGridWidth)+','+(pad*4+ netG_scatter_size+netD_scatter_size+hmHeight)+')')
         .attr('id', 'training')
 
     var trainPlotBandScale = d3.scaleBand().domain(lossData.map(d => d.scale)).range([0, trainPlotWidth * lossData.length])
@@ -236,23 +288,6 @@ function plot_it()  {
         lossData.lines.push({'key': lossAttr, 'values': lineVals})
     })
 
-    // lossData.forEach(lossPerScale => {
-    //     var scale_x = d3.scaleLinear().domain(d3.extent(lossPerScale.iter[lossPerScale])).range([0, trainPlotWidth])
-    //     showLines.forEach(key => {
-    //         scale_y_extents = scale_y_extents.concat(d3.extent(lossPerScale[key]))
-    //     })
-    //     var filteredKeys = Object.keys(lossPerScale).filter(key => showLines.includes(key))
-    //     lossPerScale.lineData = filteredKeys.map(key => {
-    //         var line_datum = {};
-    //         line_datum.scale_x = scale_x
-    //         line_datum.values = lossPerScale[key].map((d, i) => {return {'x': i*100, 'y': d}})
-    //         line_datum.key = key
-    //         line_datum.scale = lossPerScale.scale
-    //         return line_datum
-    //     })
-    //     lossPerScale.scale_x = scale_x
-    // })
-    
     var loss_scale_x = d3.scaleLinear().domain(d3.extent(lossData.lines[0].values.map(d => d.x))).range([0, trainPlotWidth*lossData.length])
     var loss_scale_y = d3.scaleLinear().domain(d3.extent(scale_y_extents)).range([trainPlotHeight, 0])
 
