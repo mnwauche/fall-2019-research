@@ -1,7 +1,8 @@
 // 2D brushing
 // brush on, off
 // on brush, class as 'selected'
-function populate_imageGrid(selected_samples, imgGrid, imgCols, imgColBandScale, imgRowBandScale){
+function populate_imageGrid(selected_samples, col_scale, row_scale){
+    var imgCols = col_scale.domain().length
     d3.selectAll('#imgGrid').selectAll('.img').remove()
     // update selection with new images
     d3.select('#imgGrid').selectAll('g').data(selected_samples, function(d) {return d;}).enter()
@@ -10,14 +11,53 @@ function populate_imageGrid(selected_samples, imgGrid, imgCols, imgColBandScale,
             // console.log(new URL('sample_imgs/'+sample.path, window.location.href))
             return new URL('sample_imgs/'+sample.path, window.location.href)
         })
-        .attr('width', imgColBandScale.bandwidth())
-        .attr('height', imgRowBandScale.bandwidth())
+        .attr('width', col_scale.bandwidth())
+        .attr('height', row_scale.bandwidth())
         .attr('preserveAspectRatio', 'none')
         .attr('class', 'img')
-        .attr('transform', (d, i) => 'translate(' +(imgColBandScale(i % imgCols))+', ' +imgRowBandScale(Math.floor(i / imgCols))+')')
+        .attr('transform', (d, i) => 'translate(' +(col_scale(i % imgCols))+', ' +row_scale(Math.floor(i / imgCols))+')')
 }
 
-function mouse_brush(plots_select, plot0, allSamples, layerScales, hue_scale, chroma_scale, scatter_size, imgGrid, imgCols, rowBandScale, colBandScale) {
+// identify brushed samples from the heatmap
+function reorder_matrix(selected, noiseInput, hmCellScales){
+    var hm_select = d3.select('#hm')
+    var xScale = hmCellScales.hm_x_scale, yScale = hmCellScales.hm_y_scale
+    var selected_paths = selected.map(s => s.path)
+    var lastSelectedPath = selected_paths[selected_paths.length - 1]
+    var og_ordering = false
+    var reordered_paths = selected_paths.concat(noiseInput.map(n => n.path).filter(n => !selected_paths.includes(n)))
+
+    hmCellScales.hm_x_scale.domain(reordered_paths)
+    hmCellScales.hm_y_scale.domain(reordered_paths)
+
+    og_ordering = reordered_paths == noiseInput.map(n => n.path)
+
+    d3.selectAll('.cell').transition().duration(1300)
+        .attr('transform', d => 'translate('+hmCellScales.hm_x_scale(d.key1)+', '+hmCellScales.hm_y_scale(d.key0)+')')
+
+    d3.selectAll('.boundary-line').transition().duration(1100)
+        .each(function(d) {
+            // h: (0, y_scale(last_path)) => (x_scale(last_path), y_scale(last_path))
+            // v: (x_scale(last_path),  0) => (x_scale(last_path), y_scale(last_path))
+            var horizontal = 0
+            var x1 = d == horizontal ? 0 : xScale(lastSelectedPath) + x_scale.bandwidth()
+            var x2 = xScale(lastSelectedPath)
+            var y1 = d == horizontal ? yScale(lastSelectedPath) : 0
+            var y2 = yScale(lastSelectedPath)
+            var stroke = og_ordering ? 'none' : 'gray'
+            console.log([x1, y1, x2, y2])
+            console.log(stroke)
+            d3.select(this).attr('x1', x1).attr('x2', x2).attr('y1', y1).attr('y2', y2).attr('stroke', stroke)
+                .attr('stroke-width', 3)
+        })
+
+    //console.log(samples)
+    //console.log(samples.map(s => parseInt(s.path.replace('sample', '').replace('.png', ''))))
+    //var transition = d3.transition().duration()
+}
+
+function mouse_brush(allSamples, layerScales, scatterColorScale, column_scale, row_scale, hmCellScales, noiseInput) {
+    var scatter_size = layerScales[scatterColorScale.plot0].tsne1.range()[1]
     var brush = d3.brush().extent([[0, 0], [scatter_size, scatter_size]])
 
     brush.on('start', function(d, i) {
@@ -33,27 +73,21 @@ function mouse_brush(plots_select, plot0, allSamples, layerScales, hue_scale, ch
         });
         // console.log(selected_samples.length)
 
-        d3.selectAll('.plot').selectAll('.selected').data(selected_samples, d => d.path).exit().classed('selected', false).attr('fill',  function(d) {return d3.hcl(hue_scale(d[plot0].tsne1), chroma_scale(d[plot0].tsne2), 60)}) // color scale based on the chosen layer )
+        // return exit selection (surplus nonselected samples) and change to original color scale layer
+        d3.selectAll('.plot').selectAll('.selected').data(selected_samples, d => d.path).exit().classed('selected', false)
+            .attr('fill',  function(d) {return d3.hcl(scatterColorScale.hue_scale(d[scatterColorScale.plot0].tsne1), scatterColorScale.chroma_scale(d[scatterColorScale.plot0].tsne2), 60)}) // color scale based on the chosen layer
+        // reclass selected samples and higlight
         d3.selectAll('.plot').selectAll('.mark').data(selected_samples, d => d.path).classed('selected', true)
-            .attr('fill', d3.hcl(81, 99, 92))
-        // var all_marks = plots_select.selectAll('.mark')
-        // all_marks.attr('fill', (d, i) =>  { // default fill all marks
-        //     return d3.hcl(hue_scale(plot0.values[i].tsne1), chroma_scale(plot0.values[i].tsne2), 60) // color scale based on the chosen layer
-        // })
-        // all_marks
-        //     .filter(function() {
-        //         var visual_width = +d3.select(this).attr('width'), visual_height = +d3.select(this).attr('height');
-        //         var visual_x = +d3.select(this).attr('x'), visual_y = +d3.select(this).attr('y');
-        //         return (visual_x + visual_width) >= rect_select[0][0] && (visual_x) <= rect_select[1][0] &&
-        //             (visual_y + visual_height) >= rect_select[0][1] && (visual_y) <= rect_select[1][1]
-        //     })
-        //     .attr('fill', d3.hcl(81, 99, 92)) // selected class color (yellow)
+            .attr('fill', d3.hcl(81, 99, 92)) // bright yellow highligt color
+        
         // populate with first 20 selected samples
-        var grid_size = imgGrid.selectAll('g').data().length
-        populate_imageGrid(selected_samples.slice(0, grid_size), imgGrid, imgCols, rowBandScale, colBandScale)
+        var grid_size = d3.select('#imgGrid').selectAll('g').data().length
+        populate_imageGrid(selected_samples.slice(0, grid_size), column_scale, row_scale)
+
+        reorder_matrix(selected_samples, noiseInput, hmCellScales)
     });
 
-    plots_select.call(brush)
+    d3.selectAll('.plot').call(brush)
 }
 
 
@@ -94,6 +128,9 @@ function plot_it()  {
         var tsne2_scale = d3.scaleLinear().domain(tsne2_extremes).range([netG_scatter_size, 0])
         layerScales[layer.key] = {'tsne1': tsne1_scale, 'tsne2': tsne2_scale}
     })
+    // console.log('layerScales')
+    // console.log(layerScales)
+
 
     // format data
     allSamples = []
@@ -108,11 +145,15 @@ function plot_it()  {
 
     d3.select('body').append('svg').attr('width', svg_width).attr('height', svg_height).attr('id', 'svg0');
 
-    // CHANGE COLORMAP LAYER HERE
     gKeys = layerData.filter(d => {return d.net == 'G'}).map(d => {return d.key})
-    plot0 = gKeys[gKeys.length - 1]
-    var hue_scale = d3.scaleLinear().domain(layerScales[plot0].tsne1.domain()).range([0, 180])
-    var chroma_scale = d3.scaleLinear().domain(layerScales[plot0].tsne2.domain()).range([20, 90])
+    // scatter plots color scale
+    var scatterColorScale = {}
+    // CHANGE COLORMAP LAYER HERE
+    scatterColorScale.plot0 = gKeys[gKeys.length - 1]
+    console.log('layer data:')
+    console.log(layerData)
+    scatterColorScale.hue_scale = d3.scaleLinear().domain(layerScales[scatterColorScale.plot0].tsne1.domain()).range([0, 180])
+    scatterColorScale.chroma_scale = d3.scaleLinear().domain(layerScales[scatterColorScale.plot0].tsne2.domain()).range([20, 90])
 
     // imgGrid
     //  rows => image < imgRows * (rowIdx + 1)
@@ -188,26 +229,23 @@ function plot_it()  {
         .attr('height', mark_size_small) 
         .attr('class', 'mark')
 
-        d3.selectAll('.plot').each(function(layer)  {
-            var scale_x = layerScales[layer].tsne1, scale_y = layerScales[layer].tsne2;
-            d3.select(this).selectAll('.mark')
-                .attr('x', d => scale_x(d[layer].tsne1)).attr('y', d => scale_y(d[layer].tsne2))
-                .attr('fill', (d, i) =>  {
-                    return d3.hcl(hue_scale(d[plot0].tsne1), chroma_scale(d[plot0].tsne2), 60) // color scale based on the chosen layer
-                })
-            //d3.select(this).append('g').attr('transform', 'translate(0,0)').call(d3.axisLeft(scale_y).ticks(4))
-            //d3.select(this).append('g').attr('transform', 'translate(0,'+plot_height+')').call(d3.axisBottom(scale_x).ticks(4))
-        })
-        
-        
-        var plots_select = d3.selectAll('.plot'); // plot group, including fill, axes, marks
-        d3.selectAll('.plot').append('text').text(d => {return d}).attr('fill', 'black')
-        mouse_brush(plots_select, plot0, allSamples, layerScales, hue_scale, chroma_scale, netG_scatter_size, imgGrid, imgCols, imgColBandScale, imgRowBandScale) // FIX: scatter sizes should be identical for both networks
+    d3.selectAll('.plot').each(function(layer)  {
+        var scale_x = layerScales[layer].tsne1, scale_y = layerScales[layer].tsne2;
+        d3.select(this).selectAll('.mark')
+            .attr('x', d => scale_x(d[layer].tsne1)).attr('y', d => scale_y(d[layer].tsne2))
+            .attr('fill', (d, i) =>  {
+                return d3.hcl(scatterColorScale.hue_scale(d[scatterColorScale.plot0].tsne1), scatterColorScale.chroma_scale(d[scatterColorScale.plot0].tsne2), 60) // color scale based on the chosen layer
+            })
+        //d3.select(this).append('g').attr('transform', 'translate(0,0)').call(d3.axisLeft(scale_y).ticks(4))
+        //d3.select(this).append('g').attr('transform', 'translate(0,'+plot_height+')').call(d3.axisBottom(scale_x).ticks(4))
 
-    
+    })
+
+    d3.selectAll('.plot').append('text').attr('x', 0).attr('y', 0).text(function(d) {return d}).attr('fill', 'black')
+        
     // heatmap distance matrix 
     // latent vector samples on bivariate color map
-    var hmWidth = 800, hmHeight = 400
+    var hmWidth = 1000, hmHeight = 500
     d3.select('#svg0').append('g').attr('transform', 'translate('+(pad + imgGridWidth)+', '+(pad*3 + netG_scatter_size+netD_scatter_size)+')')
         .attr('id', 'hm')
     var hm_data = []
@@ -215,46 +253,91 @@ function plot_it()  {
     noiseInput.forEach(noise0 => {
         noiseInput.forEach(noise1 => {
             // euclidean distance is the square root of the sum of the squared differences 
-            var euc_distance = noise0.noise.map((n, index) => Math.pow((n - noise1.noise[index]), 2))
-            hm_data.push({'key0': noise0.path, 'key1': noise1.path, 'distance': Math.pow(d3.sum(euc_distance), 0.5)})
+            var squared_differences = noise0.noise.map((noiseVar, noiseVarInd) => Math.pow((noiseVar - noise1.noise[noiseVarInd]), 2))
+            //console.log('sum of squared diffrences extents:')
+            //console.log(Math.pow(d3.sum(squared_differences), 0.5))
+            hm_data.push({'key0': noise0.path, 'key1': noise1.path, 'distance': Math.pow(d3.sum(squared_differences), 0.5)})
         })
     })
-    hm_extremes = d3.extent(hm_data.map(datum => datum.distance))
+    console.log('nonzero extents')
+    console.log()
+    var nonzero_hm_exteremes = d3.extent(hm_data.map(d => d.distance).filter(d => d !== 0.0))
+    // hm_extremes = d3.extent(hm_data.map(datum => datum.distance))
     // heatmap scales
-    var hm_hue_scale = d3.scaleLinear().domain(hm_extremes).range([-1, 1]) // 0 or 260
-	var hm_lum_scale = d3.scaleLinear().domain(hm_extremes).range([-60, 60]) // 30 => 90 both colors
-	var hues = [0, 260]
-    var hm_chroma_scale = d3.scaleLinear().domain(hm_extremes).range([-80, 80]) // 0 => 80 both colors
+
+    // bivariate ordinal color scale
+    // var hm_hue_scale = d3.scaleLinear().domain(hm_extremes).range([-1, 1]) // 0 or 260
+    // var hues = [0, 260]
+    // var hm_chroma_scale = d3.scaleLinear().domain(hm_extremes).range([-80, 80]) // 0 => 80 both colors
+	// var hm_lum_scale = d3.scaleLinear().domain(hm_extremes).range([-60, 60]) // 30 => 90 both colors
+
+    // function hm_color_scale (d) {
+	// 	hue = hm_hue_scale(d.distance)
+	// 	hue = hue >= 0 ? hues[1] : hues[0]
+	// 	chroma = hm_chroma_scale(d.distance)
+	// 	chroma = chroma >= 0 ? chroma : chroma * -1
+	// 	lum = hm_lum_scale(d.distance)
+	// 	lum = lum <= 0 ? lum + 90 : (lum * -1) + 90 //
+	// 	return d3.hcl(hue, chroma, lum)
+    // }
+
+    // ordinal color scale (change in lum)
+    // var hm_hue_scale = d3.scaleLinear().domain(hm_extremes).range([-1, 1]) // 0 or 260
+    var hue = 30
+    var chroma = 100
+    // var hm_chroma_scale = d3.scaleLinear().domain(hm_extremes).range([-80, 80]) // 0 => 80 both colors
+	var hm_lum_scale = d3.scaleLinear().domain(nonzero_hm_exteremes).range([20, 70]) // 30 => 70 
     
-    var hm_x_scale = d3.scaleBand().domain(noiseInput.map(n => n.path)).range([0, hmWidth]).paddingInner(.025)
-    var hm_y_scale = d3.scaleBand().domain(noiseInput.map(n => n.path)).range([0, hmHeight]).paddingInner(.025)
-    
-    function hm_color_scale (d) {
-		hue = hm_hue_scale(d.distance)
-		hue = hue >= 0 ? hues[1] : hues[0]
-		chroma = hm_chroma_scale(d.distance)
-		chroma = chroma >= 0 ? chroma : chroma * -1
-		lum = hm_lum_scale(d.distance)
-		lum = lum <= 0 ? lum + 90 : (lum * -1) + 90 //
-		return d3.hcl(hue, chroma, lum)
+    function hm_color_scale(distance){
+        return d3.hcl(hue, chroma, hm_lum_scale(distance))
     }
+
+    // cell position
+    var hmCellScales = {}
+    hmCellScales.hm_x_scale = d3.scaleBand().domain(noiseInput.map(n => n.path)).range([0, hmWidth]).paddingInner(.025)
+    hmCellScales.hm_y_scale = d3.scaleBand().domain(noiseInput.map(n => n.path)).range([0, hmHeight]).paddingInner(.025)
+    
+    
     
     var hm_select = d3.select('#hm').selectAll('cell').data(hm_data).enter()
+        .append('g').attr('transform', d => 'translate('+hmCellScales.hm_x_scale(d.key1)+', '+hmCellScales.hm_y_scale(d.key0)+')')
+        .attr('class', 'cell')
 
     // heatmap selection
 	hm_select.append('rect')
-		.attr('x', d => hm_x_scale(d.key1))
-		.attr('y', d => hm_y_scale(d.key0))
-		.attr('width', hm_x_scale.bandwidth())
-		.attr('height', hm_y_scale.bandwidth())
-		.attr('fill', d => hm_color_scale(d))
-        .attr('class', 'cell')
+		.attr('x', 0)
+		.attr('y', 0)
+		.attr('width', hmCellScales.hm_x_scale.bandwidth())
+		.attr('height', hmCellScales.hm_y_scale.bandwidth())
+		.attr('fill', d => hm_color_scale(d.distance))
+
+    hm_select.append('text').attr('x', 0).attr('y', 0).text(d => d3.format('.2f')(d.distance)) // fixed-point notation
+        .style("font-size","7.5px")
+        .attr('transform', 'translate(0, 10)')
+
+    // heatmap scales
+    d3.select('#hm').append('g').call(d3.axisLeft(hmCellScales.hm_y_scale))
+    d3.select('#hm').append('g').call(d3.axisTop(hmCellScales.hm_x_scale)).attr('id', 'axis-top')
+    d3.select("#axis-top").selectAll("text")
+        .attr("transform"," translate(-30, -10) rotate(30)") // To rotate the texts on x axis. Translate y position a little bit to prevent overlapping on axis line.
+        .style("font-size","10px") //To change the font size of texts
+
+    // bondary lines
+    d3.select('#hm').selectAll('boundary-line').data([0, 1]).enter().append('line').attr('stroke', 'none').attr('class', 'bondary-line')
+
+    // to do: add heatmap reordering based on selected
+    // .on("")
 
     // TO DO: add heat map color legend
         
-    // console.log(hm_extremes)
+    console.log(d3.sum(hm_data.map(d => d.distance)) / hm_data.length) // average distance
     // console.log(noiseInput)
     // console.log(hm_data)
+
+    // scatter plot brush interaction
+    mouse_brush(allSamples, layerScales, scatterColorScale, imgColBandScale, imgRowBandScale, hmCellScales, noiseInput) // FIX: scatter sizes should be identical for both networks
+
+    
 
     // training plot
     var trainPlotWidth = 600, trainPlotHeight = 200;
