@@ -246,7 +246,7 @@ function plot_it()  {
     // heatmap distance matrix 
     // latent vector samples on bivariate color map
     var hmWidth = 1000, hmHeight = 500
-    d3.select('#svg0').append('g').attr('transform', 'translate('+(pad + imgGridWidth)+', '+(pad*3 + netG_scatter_size+netD_scatter_size)+')')
+    d3.select('#svg0').append('g').attr('transform', 'translate('+(pad*3 + imgGridWidth)+', '+(pad*3 + netG_scatter_size+netD_scatter_size)+')')
         .attr('id', 'hm')
     var hm_data = []
     var noiseInput = layerData.filter(layer => layer.key == 'input')[0].values
